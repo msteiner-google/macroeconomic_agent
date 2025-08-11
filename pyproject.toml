@@ -1,0 +1,267 @@
+[project]
+name = "agent-sql-economic"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "absl-py>=2.3.1",
+    "aiosqlite>=0.21.0",
+    "google-adk>=1.10.0",
+    "injector>=0.22.0",
+    "loguru>=0.7.3",
+    "pandas>=2.3.1",
+    "pydantic>=2.11.7",
+    "pytest>=8.4.1",
+]
+
+[dependency-groups]
+dev = [
+    "anyio>=4.10.0",
+    "basedpyright>=1.31.1",
+    "pyrefly>=0.27.2",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "ruff>=0.12.8",
+]
+
+[tool.pyrefly]
+#### configuring what to type check and where to import from
+project-includes = ["agent_sql_economic"]
+project-excludes = ["**/.[!/.]*", "**/tests"]
+search-path = ["agent_sql_economic"]
+site-package-path = ["venv/lib/python3.12/site-packages"]
+
+#### configuring your python environment
+python-platform = "linux"
+python-version = "3.12"
+python-interpreter = ".venv/bin/python3"
+
+#### configuring your type check settings
+replace-imports-with-any = ["sympy.*", "*.series"]
+
+ignore-errors-in-generated-code = true
+ignore-missing-source = true
+
+[tool.pyrefly.errors]
+bad-assignment = false
+invalid-argument = false
+
+[[tool.pyrefly.sub-config]]
+# apply this config to all files in `sub/project`
+matches = "sub/project/**"
+
+# enable `assert-type` errors in `sub/project`
+[tool.pyrefly.sub-config.errors]
+assert-type = true
+
+[[tool.pyrefly.sub-config]]
+matches = "sub/**"
+
+# disable `assert-type` errors in `sub/project`
+[tool.pyrefly.sub-config.errors]
+assert-type = false
+
+# RUFF section
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "data",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+    "**/dist",
+    "test_data",
+]
+# Lint and format also notebooks.
+extend-include = ["**/*.ipynb"]
+# Same as Black.
+line-length = 88
+indent-width = 4
+
+# Assume Python 3.12
+target-version = "py312"
+
+[tool.ruff.format]
+
+preview = true
+
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
+# Enable auto-formatting of code examples in docstrings. Markdown,
+# reStructuredText code/literal blocks and doctests are all supported.
+#
+# This is currently disabled by default, but it is planned for this
+# to be opt-out in the future.
+docstring-code-format = true
+
+# Set the line length limit used when formatting code snippets in
+# docstrings.
+#
+# This only has an effect when the `docstring-code-format` setting is
+# enabled.
+docstring-code-line-length = "dynamic"
+
+
+[tool.ruff.lint]
+preview = true
+select = [
+    # pycodestyle
+    "E",
+    "W",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+    # pydocstyle
+    "D",
+    # mccabe
+    "C90",
+    # pep8 naming
+    "N",
+    # flake8 annotations
+    "ANN",
+    #flake8 bandit
+    "S",
+    # blind except
+    "BLE",
+    # flake8 boolean trap
+    "FBT",
+    # flake8 builtins
+    "A",
+    # flake8 commas
+    "COM",
+    # flake8 comprehensions
+    "C4",
+    # flake8-datetimez (DTZ)
+    "DTZ",
+    # flake8-implicit-str-concat (ISC)
+    "ISC",
+    # flake8-logging-format (G)
+    "G",
+    # flake8-no-pep420 (INP)
+    "INP",
+    # flake8-pie
+    "PIE",
+    # flake8-print
+    "T20",
+    # flake8-pyi
+    "PYI",
+    # flake8-pytest-style
+    "PT",
+    # flake8-quotes
+    "Q",
+    # flake8-raise
+    "R",
+    # flake8-return (RET)
+    "RET",
+    # flake8-self
+    "SLF",
+    # flake8-tidy-imports
+    "TID",
+    # flake8-type-checking
+    "TCH",
+    # flake8-gettext
+    "INT",
+    # flake8-unused-arguments
+    "ARG",
+    # flake8-use-pathlib
+    "PTH",
+    # flake8-todos
+    "TD",
+    # flake8-fixme
+    "FIX",
+    # eradicate
+    "ERA",
+    # pandas-vet
+    "PD",
+    # Pylint
+    "PL",
+    # tryceratops
+    "TRY",
+    # flynt
+    "FLY",
+    # NumPy-specific rules
+    "NPY",
+    # Airflow
+    "AIR",
+    # Perflint
+    "PERF",
+    # refurb
+    "FURB",
+    # flake8-logging
+    "LOG",
+    # Ruff-specific rules
+    "RUF",
+]
+ignore = ["COM812", "ISC001", "S101"]
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+exclude = []
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+
+[tool.basedpyright]
+include = ["agent_sql_economic"]
+typeCheckingMode = "standard"
+exclude = [
+    "**/node_modules",
+    "**/__pycache__",
+    "src/experimental",
+    "src/typestubs",
+    ".venv/",
+]
+ignore = ["src/oldstuff"]
+
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportCallIssue = false
+
+pythonVersion = "3.12"
+# apply this config to all files in `sub`
