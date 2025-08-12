@@ -75,12 +75,17 @@ async def test_sql_bot_answers_to_pleasantry(runner: Runner) -> None:
     assert text
 
 
-@pytest.mark.asyncio
-async def test_sql_bot_generate_simple_valid_queries(
-    runner: Runner, config: AgentConfig
-) -> None:
-    question = "What is the country with the lowest GDP per capita in 2022?"
+_valid_queries = [
+    "What is the country with the lowest GDP per capita in 2022?",
+    "What are the 10 countries with the highest inflation in 2020?",
+]
 
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("question", _valid_queries)
+async def test_sql_bot_generate_simple_valid_queries(
+    runner: Runner, config: AgentConfig, question: str
+) -> None:
     events, _ = await _invoke(question=question, runner=runner)
     assert events, "Expected at least one event"
 
