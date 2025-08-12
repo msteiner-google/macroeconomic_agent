@@ -1,151 +1,102 @@
 """Integration tests for the Macro-Economic SQL Agent."""
 
-import os
+import json
 from collections.abc import AsyncIterator
-from pathlib import Path
-from unittest.mock import AsyncMock, patch, Mock
 
-import pandas as pd
 import pytest
 import pytest_asyncio
-from google.adk.agents import Agent
-from google.adk.agents.invocation_context import (
-    InvocationContext,
-    new_invocation_context_id,
-)
-from google.adk.agents.run_config import RunConfig
-from google.adk.sessions.state import State
-from google.adk.sessions.session import Session
-from google.adk.sessions.base_session_service import BaseSessionService
-from injector import Injector
+from google.adk.artifacts import InMemoryArtifactService
+from google.adk.events.event import Event
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService, Session
+from google.genai import types
+from injector import Binder, Injector, SingletonScope
 
-from agent_sql_economic.agent import (
-    _bind_configuration,
-    get_answer_generation_agent,
-    get_query_generation_agent,
-    get_query_runner_agent,
-    get_query_validation_agent,
-    root_agent,
-)
-from agent_sql_economic.data_lookup import SQLiteDataProvider
+from agent_sql_economic.agent import create_root_agent
+from agent_sql_economic.configuration import AgentConfig
+from agent_sql_economic.data_lookup import MacroEconomicDataProvider, SQLiteDataProvider
 from agent_sql_economic.module import MacroEconomicAgentDIModule
 
 
 @pytest_asyncio.fixture
-async def data_provider(tmp_path: Path) -> AsyncIterator[SQLiteDataProvider]:
-    """Fixture to create a SQLiteDataProvider with test data."""
-    csv_path = tmp_path / "test_data.csv"
-    data = {
-        "country_name": ["Testland", "Testland", "Anotherland"],
-        "year": [2023, 2024, 2024],
-        "gdp": [1000.0, 1100.0, 1500.0],
-        "inflation": [2.0, 2.5, 3.0],
-    }
-    pd.DataFrame(data).to_csv(csv_path, index=False)
+async def runner(config: AgentConfig) -> AsyncIterator[Runner]:
+    def _bind_configuration(binder: Binder) -> None:
+        binder.bind(AgentConfig, to=config, scope=SingletonScope)
 
-    db_path = tmp_path / "test.db"
-    provider = SQLiteDataProvider(csv_data=csv_path, db_path=db_path)
-    yield provider
-    await provider.close()
+    injector = Injector(modules=[_bind_configuration, MacroEconomicAgentDIModule])
+    yield Runner(
+        app_name="test",
+        agent=create_root_agent(injector),
+        session_service=InMemorySessionService(),
+        artifact_service=InMemoryArtifactService(),
+    )
+    # Once the tests are over, kill the `aiosqlite` connections so that the
+    # event loop can exit.
+    data_provider = injector.get(MacroEconomicDataProvider)
+    if isinstance(data_provider, SQLiteDataProvider):
+        await data_provider.close()
 
 
 @pytest_asyncio.fixture
-def test_agent(data_provider: SQLiteDataProvider) -> Agent:
-    """Fixture to create a test agent with a mocked data provider."""
-    os.environ["GOOGLE_API_KEY"] = "test"
+async def config() -> AgentConfig:
+    return AgentConfig(should_expand_intermediate_results=True)
 
-    def _bind_test_module(binder):
-        binder.bind(SQLiteDataProvider, to=data_provider)
 
-    injector = Injector(
-        modules=[_bind_configuration, MacroEconomicAgentDIModule, _bind_test_module]
+async def _invoke(question: str, runner: Runner) -> tuple[list[Event], Session]:
+    user = "test-user"
+
+    assert isinstance(runner.session_service, InMemorySessionService)
+    session = runner.session_service.create_session_sync(
+        app_name=runner.app_name,
+        user_id=user,
     )
 
-    with patch(
-        "google.adk.models.registry.LLMRegistry.new_llm"
-    ) as mock_new_llm:
-        mock_model = AsyncMock()
-        mock_model.generate_content_async.side_effect = [
-            # 1. Query Generation
-            "SELECT gdp FROM test_data WHERE country_name = 'Testland' AND year = 2023",
-            # 2. Answer Generation
-            "The GDP for Testland in 2023 was 1000.0.",
-            # 3. Query Generation (Multi-metric)
-            "SELECT gdp, inflation FROM test_data WHERE country_name = 'Testland' AND year = 2024",
-            # 4. Answer Generation (Multi-metric)
-            "The GDP for Testland in 2024 was 1100.0 and inflation was 2.5.",
-            # 5. Query Generation (WHERE clause)
-            "SELECT gdp FROM test_data WHERE country_name = 'Anotherland'",
-            # 6. Answer Generation (WHERE clause)
-            "The GDP for Anotherland is 1500.0.",
-            # 7. Query Generation (Invalid)
-            "SELECT gdp FROM non_existent_table",
-        ]
-        mock_new_llm.return_value = mock_model
+    input_content = types.UserContent(question)
 
-        # Re-create the agent using the test injector
-        root_agent.sub_agents = [
-            get_query_generation_agent(injector),
-            get_query_validation_agent(injector),
-            get_query_runner_agent(injector),
-            get_answer_generation_agent(injector),
-        ]
-        return root_agent
-
-
-async def run_agent_and_get_response(agent: Agent, question: str) -> str:
-    """Runs the agent and returns the final response."""
-    session = Session(
-        id="test_session",
-        app_name="test_app",
-        user_id="test_user",
-        state={"question": question},
+    async_iter = runner.run_async(
+        user_id=user,
+        session_id=session.id,
+        new_message=input_content,
     )
-    session_service = Mock(spec=BaseSessionService)
-    context = InvocationContext(
-        invocation_id=new_invocation_context_id(),
-        agent=agent,
-        session=session,
-        session_service=session_service,
-        run_config=RunConfig(),
+    return [event async for event in async_iter if event is not None], session
+
+
+@pytest.mark.asyncio
+async def test_sql_bot_answers_to_pleasantry(runner: Runner) -> None:
+    question = "hi"
+
+    events, _ = await _invoke(question=question, runner=runner)
+    assert events, "Expected at least one event"
+
+    content = events[-1].content
+    assert content, "Expected at least one content"
+
+    text = "\n\n".join(part.text for part in content.parts or [] if part.text)
+    assert text
+
+
+@pytest.mark.asyncio
+async def test_sql_bot_generate_simple_valid_queries(
+    runner: Runner, config: AgentConfig
+) -> None:
+    question = "What is the country with the lowest GDP per capita in 2022?"
+
+    events, _ = await _invoke(question=question, runner=runner)
+    assert events, "Expected at least one event"
+
+    # Check that the query was created
+    assert config.sql_query_key in events[0].actions.state_delta
+
+    # Checks that the query was valid
+    assert config.query_validation_key in events[1].actions.state_delta
+    # Check that the query passed validation.
+    assert events[1].actions.state_delta[config.query_validation_key]
+
+    # Checks that the query results are not empty. I.e. there is at least
+    # 1 row and 1 column.
+    assert config.sql_query_results_key in events[2].actions.state_delta
+    json_res = json.loads(
+        str(events[2].actions.state_delta[config.sql_query_results_key])
     )
-
-    response = ""
-    async for event in agent.run_async(context):
-        if event.is_final_response() and event.content and event.content.parts:
-            response = "".join(part.text for part in event.content.parts)
-            break
-    return response
-
-
-@pytest.mark.asyncio
-async def test_agent_single_metric(test_agent: Agent):
-    """Test the agent with a single-metric question."""
-    question = "What was the GDP of Testland in 2023?"
-    response = await run_agent_and_get_response(test_agent, question)
-    assert "1000.0" in response
-
-
-@pytest.mark.asyncio
-async def test_agent_multi_metric(test_agent: Agent):
-    """Test the agent with a multi-metric question."""
-    question = "What was the GDP and inflation for Testland in 2024?"
-    response = await run_agent_and_get_response(test_agent, question)
-    assert "1100.0" in response
-    assert "2.5" in response
-
-
-@pytest.mark.asyncio
-async def test_agent_with_where_clause(test_agent: Agent):
-    """Test the agent with a question that requires a WHERE clause."""
-    question = "What is the GDP of Anotherland?"
-    response = await run_agent_and_get_response(test_agent, question)
-    assert "1500.0" in response
-
-
-@pytest.mark.asyncio
-async def test_agent_invalid_query(test_agent: Agent):
-    """Test the agent with a question that generates an invalid query."""
-    question = "What is the GDP from a non-existent table?"
-    with pytest.raises(ValueError, match="Invalid query"):
-        await run_agent_and_get_response(test_agent, question)
+    assert len(json_res) > 0
+    assert len(json_res[0].keys()) > 0

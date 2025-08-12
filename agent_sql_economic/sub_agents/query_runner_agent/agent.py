@@ -55,7 +55,8 @@ class _CustomQueryRunnerAgent(BaseAgent):
         )
         await ctx.session_service.append_event(ctx.session, system_event)
 
-        yield Event(author=self.name)
+        if self.agent_config.should_expand_intermediate_results:
+            yield system_event
 
 
 def get_query_runner_agent(injector: Injector) -> BaseAgent:

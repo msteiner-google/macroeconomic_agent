@@ -18,6 +18,8 @@ class AgentConfig(BaseModel):
     agent_name: str = Field(default="Macroeconomic agent.")
     model: str = Field(default="gemini-2.5-flash")
 
+    should_expand_intermediate_results: bool = False
+
     macroeconomic_data_location: MacroEconomicDataStorage = Field(
         default=MacroEconomicDataStorage.SQLITE
     )
