@@ -12,13 +12,15 @@ def get_answer_generation_agent(injector: Injector) -> Agent:
     return LlmAgent(
         name="AnswerAgent",
         model=configuration.model,
-        # Change 3: Improved instruction, correctly using state key injection
-        instruction="""
-    Reply to the user question.
+        instruction=f"""
+    The following data has been created by running the SQL query derived from the user
+    orginal question:
 
-    The context data you have access to is:
+    ```json
+    {configuration.sql_query_results_key}
+    ```
 
-    {raw_data}
+    Use it to answer the original question.
     """,
         description="Run the given SQL query.",
     )

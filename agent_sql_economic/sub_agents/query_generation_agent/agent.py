@@ -31,5 +31,5 @@ def get_query_generation_agent(injector: Injector) -> Agent:
 
     """,
         description="Generates a SQL query.",
-        output_key="sql_query",  # Stores output in state['review_comments']
+        output_key=configuration.sql_query_key,
     )

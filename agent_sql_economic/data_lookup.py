@@ -27,7 +27,7 @@ class MacroEconomicDataProvider(ABC):
         ...
 
     @abstractmethod
-    def validate_query(self) -> FunctionTool:
+    async def validate_query(self, sql_query: str) -> bool:
         """Checks if the given sql query is valid or not."""
         ...
 
@@ -105,25 +105,20 @@ class SQLiteDataProvider(MacroEconomicDataProvider):
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
 
-    def validate_query(self) -> FunctionTool:
+    async def validate_query(self, sql_query: str) -> bool:
         """Checks if the given sql query is valid or not."""
-
         # Using EXPLAIN is a lightweight way to ask the database to parse
         # and plan the query without executing it. If the syntax is invalid,
         # it will raise an error.
-        @FunctionTool
-        async def helper(sql_query: str) -> dict[str, bool]:
-            logger.info("SQL_QUERY: {}", sql_query)
-            explain_query = f"EXPLAIN {sql_query}"
+        logger.info("SQL_QUERY: {}", sql_query)
+        explain_query = f"EXPLAIN {sql_query}"
 
-            async with self.lock:
-                if self.db is None:
-                    self.db = await aiosqlite.connect(self.db_path, uri=True)
-            try:
-                async with aiosqlite.connect(self.db_path, uri=True) as db:
-                    await db.execute(explain_query)
-                return {"is_query_valid": True}  # noqa: TRY300
-            except sqlite3.Error:
-                return {"is_query_valid": False}
-
-        return helper
+        async with self.lock:
+            if self.db is None:
+                self.db = await aiosqlite.connect(self.db_path, uri=True)
+        try:
+            async with aiosqlite.connect(self.db_path, uri=True) as db:
+                await db.execute(explain_query)
+            return True  # noqa: TRY300
+        except sqlite3.Error:
+            return False

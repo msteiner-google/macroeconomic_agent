@@ -21,3 +21,6 @@ class AgentConfig(BaseModel):
     macroeconomic_data_location: MacroEconomicDataStorage = Field(
         default=MacroEconomicDataStorage.SQLITE
     )
+    query_validation_key: str = "is_query_valid"
+    sql_query_key: str = "sql_query"
+    sql_query_results_key: str = "query_results"

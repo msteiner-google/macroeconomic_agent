@@ -1,36 +1,66 @@
 """Actual agent implementation for the agent that performs the query validation."""
 
-from google.adk.agents import Agent, LlmAgent
+import time
+from collections.abc import AsyncGenerator
+
+from google.adk.agents import BaseAgent
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.events.event import Event
+from google.adk.events.event_actions import EventActions
 from injector import Injector
+from loguru import logger
 
 from agent_sql_economic.configuration import AgentConfig
 from agent_sql_economic.data_lookup import MacroEconomicDataProvider
+from agent_sql_economic.markdown_utils import extract_sql_from_markdown
 
 
-def get_query_validation_agent(injector: Injector) -> Agent:
+class _CustomQueryValidationAgent(BaseAgent):
+    data_provider: MacroEconomicDataProvider
+    agent_config: AgentConfig
+
+    def __init__(
+        self, agent_config: AgentConfig, data_provider: MacroEconomicDataProvider
+    ) -> None:
+        super().__init__(
+            name="QueryValidationAgent",
+            data_provider=data_provider,
+            agent_config=agent_config,
+        )
+
+    async def _run_async_impl(
+        self, ctx: InvocationContext
+    ) -> AsyncGenerator[Event, None]:
+        logger.info("CTX: {}", ctx.session.state)
+        sql_query: str = ctx.session.state[self.agent_config.sql_query_key]
+        sql_query = extract_sql_from_markdown(sql_query)
+        result = await self.data_provider.validate_query(sql_query)
+
+        state_changes = {
+            self.agent_config.query_validation_key: result,
+            self.agent_config.sql_query_key: ctx.session.state.get(
+                self.agent_config.sql_query_key
+            ),
+        }
+        actions_with_update = EventActions(state_delta=state_changes)
+
+        current_time = time.time()
+
+        system_event = Event(
+            invocation_id="query_validation",
+            author=self.name,  # Or 'agent', 'tool' etc.
+            actions=actions_with_update,
+            timestamp=current_time,
+        )
+        await ctx.session_service.append_event(ctx.session, system_event)
+
+        yield Event(author=self.name)
+
+
+def get_query_validation_agent(injector: Injector) -> BaseAgent:
     """Validates the SQL query."""
     configuration = injector.get(AgentConfig)
     data_provider = injector.get(MacroEconomicDataProvider)
-    return LlmAgent(
-        name="QueryValidatorAgent",
-        model=configuration.model,
-        # Change 3: Improved instruction, correctly using state key injection
-        instruction=f"""
-        You are an expert SQL user. Given the following
-
-        ```sql
-        {{sql_query}}
-        ```
-
-        that targets a table called `world_bank_data_2025` that has the following
-        schema:
-
-        ```json
-        {data_provider.get_schema()}
-        ```
-        you tell whether or not the query is valid.
-        """,
-        description="Validate a given SQL query.",
-        output_key="is_query_valid",  # Stores output in state['review_comments']
-        tools=[data_provider.validate_query()],
+    return _CustomQueryValidationAgent(
+        agent_config=configuration, data_provider=data_provider
     )
