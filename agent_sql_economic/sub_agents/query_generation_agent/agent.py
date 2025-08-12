@@ -25,7 +25,7 @@ def _get_llm_query_generator_agent(
     You are an experencied data analyst. Your task is to come up with a SQL
     query using the {data_provider.dialect} SQL dialect.
 
-    The query should be used to anser the {{query?}} provided by the business users.
+    The query should be used to anser the question provided by the business users.
     The table name is "world_bank_data_2025" and it has the following schema where
     the key is the column name and the value it is the description of the column:
 
@@ -86,7 +86,8 @@ class _CustomQueryGeneratorAgent(BaseAgent):
         )
         await ctx.session_service.append_event(ctx.session, system_event)
 
-        yield Event(author=self.name)
+        if self.agent_config.should_expand_intermediate_results:
+            yield system_event
 
 
 def get_query_generation_agent(injector: Injector) -> BaseAgent:
