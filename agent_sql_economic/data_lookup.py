@@ -95,30 +95,37 @@ class SQLiteDataProvider(MacroEconomicDataProvider):
         """The SQL dialect to use, which is 'sqlite'."""
         return "sqlite"
 
-    async def fetch_data(self, query: str) -> list[dict[str, str | float | int]]:
-        """Given a query, retrieve data from the SQLite database."""
+    async def _get_conn(self) -> aiosqlite.Connection:
+        """Get the database connection, creating it if it doesn't exist."""
         async with self.lock:
             if self.db is None:
                 self.db = await aiosqlite.connect(self.db_path, uri=True)
-        self.db.row_factory = aiosqlite.Row
-        async with self.db.execute(query) as cursor:
+            return self.db
+
+    async def close(self) -> None:
+        """Closes the database connection."""
+        async with self.lock:
+            if self.db:
+                await self.db.close()
+                self.db = None
+
+    async def fetch_data(self, query: str) -> list[dict[str, str | float | int]]:
+        """Given a query, retrieve data from the SQLite database."""
+        conn = await self._get_conn()
+        conn.row_factory = aiosqlite.Row
+        async with conn.execute(query) as cursor:
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
 
     async def validate_query(self, sql_query: str) -> bool:
         """Checks if the given sql query is valid or not."""
-        # Using EXPLAIN is a lightweight way to ask the database to parse
-        # and plan the query without executing it. If the syntax is invalid,
-        # it will raise an error.
         logger.info("SQL_QUERY: {}", sql_query)
         explain_query = f"EXPLAIN {sql_query}"
 
-        async with self.lock:
-            if self.db is None:
-                self.db = await aiosqlite.connect(self.db_path, uri=True)
         try:
-            async with aiosqlite.connect(self.db_path, uri=True) as db:
-                await db.execute(explain_query)
-            return True  # noqa: TRY300
+            conn = await self._get_conn()
+            async with conn.execute(explain_query):
+                pass
+            return True
         except sqlite3.Error:
             return False

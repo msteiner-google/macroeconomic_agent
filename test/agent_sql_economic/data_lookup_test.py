@@ -1,15 +1,17 @@
 """Data lookup tests."""
 
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pandas as pd
 import pytest
+import pytest_asyncio
 
 from agent_sql_economic.data_lookup import SQLiteDataProvider
 
 
-@pytest.fixture
-def data_provider(tmp_path: Path) -> SQLiteDataProvider:
+@pytest_asyncio.fixture
+async def data_provider(tmp_path: Path) -> AsyncIterator[SQLiteDataProvider]:
     """Fixture to create a SQLiteDataProvider with dummy data."""
     csv_path = tmp_path / "test_data.csv"
     data = {"country_name": ["Testland"], "year": [2023], "gdp": [1000.0]}
@@ -17,7 +19,9 @@ def data_provider(tmp_path: Path) -> SQLiteDataProvider:
 
     # Use a file-based DB for test isolation
     db_path = tmp_path / "test.db"
-    return SQLiteDataProvider(csv_data=csv_path, db_path=db_path)
+    provider = SQLiteDataProvider(csv_data=csv_path, db_path=db_path)
+    yield provider
+    await provider.close()
 
 
 @pytest.mark.asyncio
