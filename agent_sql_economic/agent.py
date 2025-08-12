@@ -1,6 +1,6 @@
 """Main agent."""
 
-from google.adk.agents import Agent, LlmAgent, SequentialAgent
+from google.adk.agents import LlmAgent, SequentialAgent
 from injector import Binder, Injector, SingletonScope
 
 from agent_sql_economic.configuration import AgentConfig
@@ -98,6 +98,7 @@ root_agent = SequentialAgent(
         query_runner_agent,
         answer_agent,
     ],
-    description="Generates and validates a given query from a natural language question.",
-    # The agents will run in the order provided: Writer -> Reviewer -> Refactorer
+    description="""
+        Generates and validates a given
+        query from a natural language question.""",
 )
