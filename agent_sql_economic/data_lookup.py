@@ -3,10 +3,13 @@
 import json
 import sqlite3
 from abc import ABC, abstractmethod
+from asyncio import Lock
 from pathlib import Path
 
 import aiosqlite
 import pandas as pd
+from google.adk.tools import FunctionTool
+from loguru import logger
 
 
 class MacroEconomicDataProvider(ABC):
@@ -24,12 +27,13 @@ class MacroEconomicDataProvider(ABC):
         ...
 
     @abstractmethod
-    async def validate_query(self, sql_query: str) -> bool:
+    def validate_query(self) -> FunctionTool:
         """Checks if the given sql query is valid or not."""
         ...
 
     @staticmethod
-    async def _get_schema() -> str:
+    def get_schema() -> str:
+        """Schema for the data."""
         return json.dumps(
             {
                 "country_name": "Extendend country name the data refers to",
@@ -73,10 +77,13 @@ class SQLiteDataProvider(MacroEconomicDataProvider):
             self.db_path = db_path
 
         self._load_data_from_csv(csv_data)
+        self.db: aiosqlite.Connection | None = None
+        self.lock: Lock = Lock()
 
     def _load_data_from_csv(self, csv_path: Path) -> None:
         """Loads data from the given CSV file into the SQLite database."""
         table_name = csv_path.stem  # Use the CSV filename as the table name
+        logger.info("SQLITE Table name: {}", table_name)
         df = pd.read_csv(csv_path)
 
         # Use standard sqlite3 for this synchronous operation
@@ -90,22 +97,33 @@ class SQLiteDataProvider(MacroEconomicDataProvider):
 
     async def fetch_data(self, query: str) -> list[dict[str, str | float | int]]:
         """Given a query, retrieve data from the SQLite database."""
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute(query) as cursor:
-                rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
+        async with self.lock:
+            if self.db is None:
+                self.db = await aiosqlite.connect(self.db_path, uri=True)
+        self.db.row_factory = aiosqlite.Row
+        async with self.db.execute(query) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
 
-    async def validate_query(self, sql_query: str) -> bool:
+    def validate_query(self) -> FunctionTool:
         """Checks if the given sql query is valid or not."""
+
         # Using EXPLAIN is a lightweight way to ask the database to parse
         # and plan the query without executing it. If the syntax is invalid,
         # it will raise an error.
-        explain_query = f"EXPLAIN {sql_query}"
-        try:
-            # The uri=True parameter is important for in-memory DBs
-            async with aiosqlite.connect(self.db_path, uri=True) as db:
-                await db.execute(explain_query)
-            return True
-        except sqlite3.Error:
-            return False
+        @FunctionTool
+        async def helper(sql_query: str) -> dict[str, bool]:
+            logger.info("SQL_QUERY: {}", sql_query)
+            explain_query = f"EXPLAIN {sql_query}"
+
+            async with self.lock:
+                if self.db is None:
+                    self.db = await aiosqlite.connect(self.db_path, uri=True)
+            try:
+                async with aiosqlite.connect(self.db_path, uri=True) as db:
+                    await db.execute(explain_query)
+                return {"is_query_valid": True}  # noqa: TRY300
+            except sqlite3.Error:
+                return {"is_query_valid": False}
+
+        return helper

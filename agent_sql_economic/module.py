@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from injector import Module, multiprovider, provider, singleton
+from injector import Module, provider, singleton
 from loguru import logger
 
 from agent_sql_economic.configuration import AgentConfig, MacroEconomicDataStorage
@@ -18,9 +18,10 @@ class MacroEconomicAgentDIModule(Module):
         self, configuration: AgentConfig
     ) -> MacroEconomicDataProvider:
         match configuration.macroeconomic_data_location:
-            case MacroEconomicDataStorage.SQLITE_IN_MEMORY:
+            case MacroEconomicDataStorage.SQLITE:
                 data_path = Path().absolute() / "data/world_bank_data_2025.csv"
+                db_path = Path().absolute() / "data/db.sqlite"
                 logger.info("Using data for SQLITE_IN_MEMORY at:", str(data_path))
-                return SQLiteDataProvider(csv_data=data_path)
+                return SQLiteDataProvider(csv_data=data_path, db_path=db_path)
             case _:
                 raise NotImplementedError()
