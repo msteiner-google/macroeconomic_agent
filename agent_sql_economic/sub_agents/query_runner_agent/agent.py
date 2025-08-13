@@ -8,6 +8,7 @@ from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events.event import Event
 from google.adk.events.event_actions import EventActions
+from google.genai import types
 from injector import Injector
 from loguru import logger
 
@@ -34,12 +35,12 @@ class _CustomQueryRunnerAgent(BaseAgent):
         sql_query: str = ctx.session.state[self.agent_config.sql_query_key]
         sql_query = extract_sql_from_markdown(sql_query)
         results = await self.data_provider.fetch_data(sql_query)
+        results_str = json.dumps(results, indent=2)
+        logger.debug("Query results:\n{}", results_str)
 
-        state_changes = {
-            self.agent_config.sql_query_results_key: json.dumps(results, indent=2),
-            self.agent_config.sql_query_key: ctx.session.state.get(
-                self.agent_config.sql_query_key
-            ),
+        state_changes: dict = {
+            **ctx.session.state,
+            self.agent_config.sql_query_results_key: results_str,
         }
         actions_with_update = EventActions(state_delta=state_changes)
 
@@ -55,6 +56,8 @@ class _CustomQueryRunnerAgent(BaseAgent):
 
         if self.agent_config.should_expand_intermediate_results:
             yield system_event
+        else:
+            yield Event(author=self.name)
 
 
 def get_query_runner_agent(injector: Injector) -> BaseAgent:

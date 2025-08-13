@@ -33,7 +33,7 @@ def create_root_agent(injector: Injector) -> SequentialAgent:
     answer_agent = get_answer_generation_agent(injector)
 
     return SequentialAgent(
-        name="MacroEconomicSQLAgent",
+        name="NL2SQLAgent",
         sub_agents=[
             query_generation_agent,
             query_validation_agent,

@@ -86,6 +86,8 @@ class _CustomQueryGeneratorAgent(BaseAgent):
 
         if self.agent_config.should_expand_intermediate_results:
             yield system_event
+        else:
+            yield Event(author=self.name)
 
 
 def get_query_generation_agent(injector: Injector) -> BaseAgent:
