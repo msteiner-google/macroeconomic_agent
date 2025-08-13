@@ -73,8 +73,9 @@ This project uses `uv` for dependency management.
 
 ## Usage
 
-To use the agent, you can either run it using the [adk-cli]()
-or import the `root_agent` and call its `invoke` method with a natural language question.
+To use the agent, you can either run it using the
+[ADK CLI](https://google.github.io/adk-docs/get-started/quickstart/#run-your-agent)
+or import the `root_agent` and call its `run_async` method.
 
 Here is an example script:
 
