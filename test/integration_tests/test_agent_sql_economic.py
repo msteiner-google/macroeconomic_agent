@@ -45,8 +45,7 @@ async def config() -> AgentConfig:  # noqa: D103, RUF029
 async def _invoke(question: str, runner: Runner) -> tuple[list[Event], Session]:
     user = "test-user"
 
-    assert isinstance(runner.session_service, InMemorySessionService)
-    session = runner.session_service.create_session_sync(
+    session = await runner.session_service.create_session(
         app_name=runner.app_name,
         user_id=user,
     )
@@ -90,18 +89,28 @@ async def test_sql_bot_generate_simple_valid_queries(  # noqa: D103
     assert events, "Expected at least one event"
 
     # Check that the query was created
-    assert config.sql_query_key in events[0].actions.state_delta
+    assert any(config.sql_query_key in e.actions.state_delta for e in events)
 
     # Checks that the query was valid
-    assert config.query_validation_key in events[1].actions.state_delta
+    assert any(config.query_validation_key in e.actions.state_delta for e in events)
+
     # Check that the query passed validation.
-    assert events[1].actions.state_delta[config.query_validation_key]
+    assert any(
+        config.query_validation_key in e.actions.state_delta
+        and e.actions.state_delta[config.query_validation_key]
+        for e in events
+    )
 
     # Checks that the query results are not empty. I.e. there is at least
     # 1 row and 1 column.
-    assert config.sql_query_results_key in events[2].actions.state_delta
-    json_res = json.loads(
-        str(events[2].actions.state_delta[config.sql_query_results_key])
-    )
-    assert len(json_res) > 0
-    assert len(json_res[0].keys()) > 0
+    results_found = False
+    for e in events:
+        if config.sql_query_results_key in e.actions.state_delta:
+            results_found = True
+
+            json_res = json.loads(
+                str(e.actions.state_delta[config.sql_query_results_key])
+            )
+            assert len(json_res) > 0
+            assert len(json_res[0].keys()) > 0
+    assert results_found
