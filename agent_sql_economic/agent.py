@@ -35,7 +35,7 @@ def create_root_agent(injector: Injector) -> BaseAgent:
     answer_agent = get_answer_generation_agent(injector)
 
     nl2sql_agent = SequentialAgent(
-        name="NL2SQLAgent",
+        name="NL2SQL_macroeconomic_agent",
         sub_agents=[
             query_generation_agent,
             query_validation_agent,
@@ -46,12 +46,12 @@ def create_root_agent(injector: Injector) -> BaseAgent:
         Generates and validates a given
         query from a natural language question.""",
     )
+
     return LlmAgent(
-        name="macroeconomic_agent",
+        name="router_agent",
         model="gemini-2.5-flash",
         description=(
-            "Creates research hypotheses for research questions"
-            " based on pubmed search results."
+            "Router agent to have have more natural interactions with the user."
         ),
         instruction=dedent("""
             Route user requests: If the user is asking about macroeconomic data, route
