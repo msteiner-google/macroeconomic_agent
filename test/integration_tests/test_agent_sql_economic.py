@@ -14,7 +14,7 @@ from injector import Binder, Injector, SingletonScope
 
 from agent_sql_economic.agent import create_root_agent
 from agent_sql_economic.configuration import AgentConfig
-from agent_sql_economic.data_lookup import MacroEconomicDataProvider, SQLiteDataProvider
+from agent_sql_economic.data_lookup import DataProvider, SQLiteDataProvider
 from agent_sql_economic.module import MacroEconomicAgentDIModule
 
 
@@ -32,7 +32,7 @@ async def runner(config: AgentConfig) -> AsyncIterator[Runner]:
     )
     # Once the tests are over, kill the `aiosqlite` connections so that the
     # event loop can exit.
-    data_provider = injector.get(MacroEconomicDataProvider)
+    data_provider = injector.get(DataProvider)
     if isinstance(data_provider, SQLiteDataProvider):
         await data_provider.close()
 

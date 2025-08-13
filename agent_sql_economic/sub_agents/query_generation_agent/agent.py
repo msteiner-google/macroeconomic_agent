@@ -11,11 +11,11 @@ from injector import Injector
 from loguru import logger
 
 from agent_sql_economic.configuration import AgentConfig
-from agent_sql_economic.data_lookup import MacroEconomicDataProvider
+from agent_sql_economic.data_lookup import DataProvider
 
 
 def _get_llm_query_generator_agent(
-    configuration: AgentConfig, data_provider: MacroEconomicDataProvider
+    configuration: AgentConfig, data_provider: DataProvider
 ) -> LlmAgent:
     return LlmAgent(
         name="QueryGeneratorAgent",
@@ -42,13 +42,11 @@ def _get_llm_query_generator_agent(
 
 
 class _CustomQueryGeneratorAgent(BaseAgent):
-    data_provider: MacroEconomicDataProvider
+    data_provider: DataProvider
     agent_config: AgentConfig
     llm_agent: LlmAgent
 
-    def __init__(
-        self, agent_config: AgentConfig, data_provider: MacroEconomicDataProvider
-    ) -> None:
+    def __init__(self, agent_config: AgentConfig, data_provider: DataProvider) -> None:
         super().__init__(
             name="QueryRunnerAgent",
             data_provider=data_provider,
@@ -93,7 +91,7 @@ class _CustomQueryGeneratorAgent(BaseAgent):
 def get_query_generation_agent(injector: Injector) -> BaseAgent:
     """Generates the SQL query."""
     configuration = injector.get(AgentConfig)
-    data_provider = injector.get(MacroEconomicDataProvider)
+    data_provider = injector.get(DataProvider)
     return _CustomQueryGeneratorAgent(
         agent_config=configuration, data_provider=data_provider
     )

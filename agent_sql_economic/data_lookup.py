@@ -1,25 +1,36 @@
 """Module with data providers definitions."""
 
-import json
 import sqlite3
 from abc import ABC, abstractmethod
 from asyncio import Lock
+from collections.abc import Collection
 from pathlib import Path
 
 import aiosqlite
 import pandas as pd
-from google.adk.tools import FunctionTool
 from loguru import logger
+from pydantic import BaseModel
 
 
-class MacroEconomicDataProvider(ABC):
+class DataSource(BaseModel):
+    """Defines a datasource."""
+
+    table_name: str
+    table_schema: dict[str, tuple[str, str]]
+
+
+class DataProvider(ABC):
     """ABC for a MacroEconomicDataProvider."""
 
     @property
     @abstractmethod
     def dialect(self) -> str:
         """The SQL dialect to use."""
-        ...
+
+    @property
+    @abstractmethod
+    def data_sources(self) -> Collection[DataSource]:
+        """DataSources available."""
 
     @abstractmethod
     async def fetch_data(self, query: str) -> list[dict[str, str | float | int]]:
@@ -31,33 +42,14 @@ class MacroEconomicDataProvider(ABC):
         """Checks if the given sql query is valid or not."""
         ...
 
-    @staticmethod
-    def get_schema() -> str:
+    def get_schema(self) -> str:
         """Schema for the data."""
-        return json.dumps(
-            {
-                "country_name": "Extendend country name the data refers to",
-                "country_id": "2 letters id of the country",
-                "year": "Year the data refers to.",
-                "inflation": "Inflation figures (CPI %).",
-                "gdp": "GDP figure.",
-                "gdp_per_capita": "GDP per capita numbers.",
-                "unemployment_rate": "Unemployment rate.",
-                "interest_rate": "Real interenest rate.",
-                "inflation_gdp_deflator": "Inflation as GDP deflator.",
-                "gdp_growth": "GDP growth as annual percentage.",
-                "current_account_balance": "Current Account Balance as % of GDP.",
-                "government_expense": "Government expense as % of GDP.",
-                "government_revenue": "Government revenue as % of GDP.",
-                "tax_revenue": "Tax revenue as % of GDP.",
-                "gross_national_income": "Gross national income in USD.",
-                "public_debt": "Public debt as percent of GDP.",
-            },
-            indent=2,
-        )
+        return "\n".join([
+            source.model_dump_json(indent=2) for source in self.data_sources
+        ])
 
 
-class SQLiteDataProvider(MacroEconomicDataProvider):
+class SQLiteDataProvider(DataProvider):
     """Provider for macro economic data from a SQLite database."""
 
     def __init__(
@@ -95,6 +87,38 @@ class SQLiteDataProvider(MacroEconomicDataProvider):
         """The SQL dialect to use, which is 'sqlite'."""
         return "sqlite"
 
+    @property
+    def data_sources(self) -> Collection[DataSource]:  # noqa: D102
+        return [
+            DataSource(
+                table_name="world_bank_data_2025",
+                table_schema={
+                    "country_name": (
+                        "Extendend country name the data refers to",
+                        "STRING",
+                    ),
+                    "country_id": ("2 letters id of the country", "STRING"),
+                    "year": ("Year the data refers to.", "INTEGER"),
+                    "inflation": ("Inflation figures (CPI %).", "FLOAT"),
+                    "gdp": ("GDP figure.", "FLOAT"),
+                    "gdp_per_capita": ("GDP per capita numbers.", "FLOAT"),
+                    "unemployment_rate": ("Unemployment rate.", "FLOAT"),
+                    "interest_rate": ("Real interenest rate.", "FLOAT"),
+                    "inflation_gdp_deflator": ("Inflation as GDP deflator.", "FLOAT"),
+                    "gdp_growth": ("GDP growth as annual percentage.", "FLOAT"),
+                    "current_account_balance": (
+                        "Current Account Balance as % of GDP.",
+                        "FLOAT",
+                    ),
+                    "government_expense": ("Government expense as % of GDP.", "FLOAT"),
+                    "government_revenue": ("Government revenue as % of GDP.", "FLOAT"),
+                    "tax_revenue": ("Tax revenue as % of GDP.", "FLOAT"),
+                    "gross_national_income": ("Gross national income in USD.", "FLOAT"),
+                    "public_debt": ("Public debt as percent of GDP.", "FLOAT"),
+                },
+            )
+        ]
+
     async def _get_conn(self) -> aiosqlite.Connection:
         """Get the database connection, creating it if it doesn't exist."""
         async with self.lock:
@@ -121,11 +145,9 @@ class SQLiteDataProvider(MacroEconomicDataProvider):
         """Checks if the given sql query is valid or not."""
         logger.info("SQL_QUERY: {}", sql_query)
         explain_query = f"EXPLAIN {sql_query}"
-
         try:
             conn = await self._get_conn()
             async with conn.execute(explain_query):
-                pass
-            return True
+                return True
         except sqlite3.Error:
             return False

@@ -11,17 +11,15 @@ from injector import Injector
 from loguru import logger
 
 from agent_sql_economic.configuration import AgentConfig
-from agent_sql_economic.data_lookup import MacroEconomicDataProvider
+from agent_sql_economic.data_lookup import DataProvider
 from agent_sql_economic.markdown_utils import extract_sql_from_markdown
 
 
 class _CustomQueryValidationAgent(BaseAgent):
-    data_provider: MacroEconomicDataProvider
+    data_provider: DataProvider
     agent_config: AgentConfig
 
-    def __init__(
-        self, agent_config: AgentConfig, data_provider: MacroEconomicDataProvider
-    ) -> None:
+    def __init__(self, agent_config: AgentConfig, data_provider: DataProvider) -> None:
         super().__init__(
             name="QueryValidationAgent",
             data_provider=data_provider,
@@ -61,7 +59,7 @@ class _CustomQueryValidationAgent(BaseAgent):
 def get_query_validation_agent(injector: Injector) -> BaseAgent:
     """Validates the SQL query."""
     configuration = injector.get(AgentConfig)
-    data_provider = injector.get(MacroEconomicDataProvider)
+    data_provider = injector.get(DataProvider)
     return _CustomQueryValidationAgent(
         agent_config=configuration, data_provider=data_provider
     )

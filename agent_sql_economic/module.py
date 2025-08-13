@@ -6,7 +6,7 @@ from injector import Module, provider, singleton
 from loguru import logger
 
 from agent_sql_economic.configuration import AgentConfig, MacroEconomicDataStorage
-from agent_sql_economic.data_lookup import MacroEconomicDataProvider, SQLiteDataProvider
+from agent_sql_economic.data_lookup import DataProvider, SQLiteDataProvider
 
 
 class MacroEconomicAgentDIModule(Module):
@@ -16,7 +16,7 @@ class MacroEconomicAgentDIModule(Module):
     @provider
     def _provide_lookup_table(  # noqa: PLR6301
         self, configuration: AgentConfig
-    ) -> MacroEconomicDataProvider:
+    ) -> DataProvider:
         match configuration.macroeconomic_data_location:
             case MacroEconomicDataStorage.SQLITE:
                 data_path = Path().absolute() / "data/world_bank_data_2025.csv"
