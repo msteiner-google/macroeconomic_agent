@@ -47,7 +47,7 @@ def create_root_agent(injector: Injector) -> BaseAgent:
         query from a natural language question.""",
     )
     return LlmAgent(
-        name="hcls_research_agent",
+        name="macroeconomic-agent",
         model="gemini-2.5-flash",
         description=(
             "Creates research hypotheses for research questions"
