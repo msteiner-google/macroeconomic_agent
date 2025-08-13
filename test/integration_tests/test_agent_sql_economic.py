@@ -19,7 +19,7 @@ from agent_sql_economic.module import MacroEconomicAgentDIModule
 
 
 @pytest_asyncio.fixture
-async def runner(config: AgentConfig) -> AsyncIterator[Runner]:
+async def runner(config: AgentConfig) -> AsyncIterator[Runner]:  # noqa: D103
     def _bind_configuration(binder: Binder) -> None:
         binder.bind(AgentConfig, to=config, scope=SingletonScope)
 
@@ -38,7 +38,7 @@ async def runner(config: AgentConfig) -> AsyncIterator[Runner]:
 
 
 @pytest_asyncio.fixture
-async def config() -> AgentConfig:
+async def config() -> AgentConfig:  # noqa: D103, RUF029
     return AgentConfig(should_expand_intermediate_results=True)
 
 
@@ -62,7 +62,7 @@ async def _invoke(question: str, runner: Runner) -> tuple[list[Event], Session]:
 
 
 @pytest.mark.asyncio
-async def test_sql_bot_answers_to_pleasantry(runner: Runner) -> None:
+async def test_sql_bot_answers_to_pleasantry(runner: Runner) -> None:  # noqa: D103
     question = "hi"
 
     events, _ = await _invoke(question=question, runner=runner)
@@ -83,7 +83,7 @@ _valid_queries = [
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("question", _valid_queries)
-async def test_sql_bot_generate_simple_valid_queries(
+async def test_sql_bot_generate_simple_valid_queries(  # noqa: D103
     runner: Runner, config: AgentConfig, question: str
 ) -> None:
     events, _ = await _invoke(question=question, runner=runner)
